@@ -5,6 +5,7 @@ import shutil
 
 from flask import request
 from services.checksum import generate_checksum, create_and_save_zip
+from services.file_cleanup import cleanup_files
 from services.log_audit import audit_processed_content
 from services.log_concat import concat_requests
 from services.log_filter import sanitize_filename, filter_urls
@@ -94,6 +95,9 @@ def configure_routes(app):
 
             # Retorna a resposta com formatação adequada para o checksum
             formatted_checksum_content = f"<pre>\n{checksum_content}\n</pre>"
+
+            # Limpar arquivos temporários
+            cleanup_files(output_dir, all_output_files, zip_filepath)
 
             return (f"Processamento concluído. O arquivo ZIP está disponível em {final_zip_path}\n"
                     f"Checksum:\n{formatted_checksum_content}"), 200
