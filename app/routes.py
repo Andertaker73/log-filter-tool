@@ -3,12 +3,14 @@ import re
 import tempfile
 import shutil
 
+from pathlib import Path
 from flask import request
 from services.checksum import generate_checksum, create_and_save_zip
 from services.file_cleanup import cleanup_files
 from services.log_audit import audit_processed_content
 from services.log_concat import concat_requests
 from services.log_filter import sanitize_filename, filter_urls
+from services.utils import get_unique_path
 
 
 def configure_routes(app):
@@ -40,7 +42,7 @@ def configure_routes(app):
 
             if filter_param:
                 sanitized_filter_param = sanitize_filename(filter_param.rstrip("/"))
-                filtered_file = os.path.join(save_dir, f"filtered_{sanitized_filter_param}.log")
+                filtered_file = get_unique_path(Path(save_dir) / f"filtered_{sanitized_filter_param}.log")
 
                 with open(input_file_path, 'r', encoding='utf-8') as log_origin, open(filtered_file, 'w',
                                                                                       encoding='utf-8') as out_file:
@@ -48,7 +50,7 @@ def configure_routes(app):
                     for line in log_origin:
                         if filter_param in line:
                             out_file.write(line)
-                            capture_lines = '*ERROR*' in line
+                            capture_lines = '*ERROR*' or 'Error' in line
                         elif capture_lines:
                             timestamp_match = re.match(r'\d{2}\.\d{2}\.\d{4} \d{2}:\d{2}:\d{2}\.\d{3}', line)
                             if not timestamp_match:
@@ -56,7 +58,14 @@ def configure_routes(app):
                             else:
                                 capture_lines = False
 
-                return f"Processamento concluído. O arquivo de log está disponível em {filtered_file}", 200
+                # Calcular o checksum do arquivo filtrado
+                checksum_log, checksum_content = generate_checksum(input_file_path, [filtered_file],
+                                                                   save_dir)
+
+                # return f"Processamento concluído. O arquivo de log está disponível em {filtered_file}", 200
+                return (f"Processamento concluído.<br>"
+                        f"Arquivo de log disponível em:<br><a href='{filtered_file}'>{filtered_file}</a><br><br>"
+                        f"Checksum:<br><pre>{checksum_content}</pre>", 200)
 
             concat_files = []
             if concat_params:
